@@ -1,0 +1,1 @@
+# vscode-cursor-auto-hide
