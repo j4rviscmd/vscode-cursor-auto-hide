@@ -1,0 +1,89 @@
+name: Publish Extension
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Get version from package.json
+        id: package-version
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=v$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Check if tag exists
+        id: check-tag
+        run: |
+          if git rev-parse "v${{ steps.package-version.outputs.version }}" >/dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Exit if tag exists
+        if: steps.check-tag.outputs.exists == 'true'
+        run: |
+          echo "Tag ${{ steps.package-version.outputs.tag }} already exists. Skipping publish."
+          exit 0
+
+      - name: Install dependencies
+        if: steps.check-tag.outputs.exists == 'false'
+        run: npm ci
+
+      - name: Install vsce
+        if: steps.check-tag.outputs.exists == 'false'
+        run: npm install -g @vscode/vsce
+
+      - name: Create and push tag
+        if: steps.check-tag.outputs.exists == 'false'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag ${{ steps.package-version.outputs.tag }}
+          git push origin ${{ steps.package-version.outputs.tag }}
+
+      - name: Publish to VS Marketplace
+        if: steps.check-tag.outputs.exists == 'false'
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: vsce publish -p $VSCE_PAT
+
+      - name: Extract changelog for version
+        if: steps.check-tag.outputs.exists == 'false'
+        id: changelog
+        run: |
+          VERSION=${{ steps.package-version.outputs.version }}
+          CHANGELOG=$(awk "/## \[$VERSION\]/,/## \[/" CHANGELOG.md | sed '1d;$d' | sed '/^$/d')
+          echo "content<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        if: steps.check-tag.outputs.exists == 'false'
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.package-version.outputs.tag }}
+          release_name: Release ${{ steps.package-version.outputs.tag }}
+          body: ${{ steps.changelog.outputs.content }}
+          draft: false
+          prerelease: false
