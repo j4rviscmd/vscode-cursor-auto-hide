@@ -1,0 +1,57 @@
+{
+  "name": "cursor-auto-hide",
+  "displayName": "Cursor Auto Hide",
+  "description": "Automatically hides the mouse cursor after N seconds of inactivity. Perfect for Vim/Neovim users who prefer keyboard-only navigation.",
+  "version": "0.1.0",
+  "publisher": "j4rviscmd",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Other"],
+  "keywords": ["vim", "neovim", "cursor", "mouse", "auto-hide", "productivity"],
+  "icon": "icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/j4rviscmd/vscode-cursor-auto-hide.git"
+  },
+  "bugs": {
+    "url": "https://github.com/j4rviscmd/vscode-cursor-auto-hide/issues"
+  },
+  "activationEvents": ["onStartupFinished"],
+  "main": "./out/extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "Cursor Auto Hide",
+      "properties": {
+        "cursorAutoHide.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable automatic cursor hiding after mouse inactivity."
+        },
+        "cursorAutoHide.delay": {
+          "type": "number",
+          "default": 3,
+          "minimum": 1,
+          "maximum": 30,
+          "description": "Seconds of mouse inactivity before the cursor is hidden (1–30)."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "biome lint ./src",
+    "format": "biome format --write ./src",
+    "check": "biome check --write ./src",
+    "check:ci": "biome check ./src",
+    "vscode:prepublish": "npm run compile"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "@types/node": "^20.10.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.4.0"
+  }
+}
