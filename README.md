@@ -84,7 +84,11 @@ Moving the mouse instantly removes all three layers so VS Code behaves completel
 
 ## Known limitations
 
-- **Desktop VS Code only** — VS Code for the Web (vscode.dev, GitHub Codespaces browser) is not supported
+> [!WARNING]
+> This extension requires local access to VS Code's workbench HTML file. The following environments are **not supported**:
+> - **VS Code for the Web** — vscode.dev, GitHub Codespaces (browser)
+> - **Remote - SSH** — the workbench HTML resides on the local client, not the remote host, so the extension cannot locate it and will show a warning notification
+
 - **VS Code update warning** — after a VS Code version update, the "corrupt installation" notification may reappear. Dismiss it with ⚙️ → "Don't Show Again" as described above
 
 ---
