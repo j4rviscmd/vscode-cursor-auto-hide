@@ -635,10 +635,17 @@ function log(msg: string): void {
  */
 function buildCSS(): string {
   return `
-/* === Cursor Auto Hide: Layer 1 — visual hide + event block === */
+/* === Cursor Auto Hide: Layer 1 — visual hide + event block ===
+   cursor:none covers both <html> (empty margins) and all descendants.
+   pointer-events:none applies to descendants only — NOT to <html> itself —
+   so Chromium's focus-dispatch mechanism is not disrupted, which is required
+   for keyboard-triggered overlays (quickOpen, find, etc.) to receive focus. */
 html.cursor-autohide-hidden,
 html.cursor-autohide-hidden * {
   cursor: none !important;
+}
+
+html.cursor-autohide-hidden * {
   pointer-events: none !important;
 }
 
@@ -664,7 +671,14 @@ html.cursor-autohide-hidden .monaco-editor .overflowingContentWidgets * {
   pointer-events: auto !important;
 }
 
-/* === Cursor Auto Hide: Overlay Exemptions — keep UI interactive === */
+/* === Cursor Auto Hide: Overlay Exemptions — keep UI interactive ===
+   All overlay widgets (quickOpen, find/replace, peek view, parameter hints,
+   dialogs, menus) need both cursor and pointer-events restored.
+   .editor-widget  → find/replace, parameter hints, inline suggest, etc.
+   .zone-widget    → peek view, inline diff, inline chat, etc.
+   .quick-input-widget → command palette, quickOpen, quickFix picker
+   .action-widget  → Ctrl+. code actions / quick fix suggestions
+   .context-view   → right-click context menus, dropdown overlays */
 html.cursor-autohide-hidden :is(
   [role="dialog"],
   [role="menu"],
@@ -672,6 +686,10 @@ html.cursor-autohide-hidden :is(
   [role="listbox"],
   [role="option"],
   .quick-input-widget,
+  .editor-widget,
+  .zone-widget,
+  .action-widget,
+  .context-view,
   .notification-toast,
   .monaco-inputbox,
   input,
@@ -682,6 +700,10 @@ html.cursor-autohide-hidden :is(
   [role="dialog"],
   [role="menu"],
   .quick-input-widget,
+  .editor-widget,
+  .zone-widget,
+  .action-widget,
+  .context-view,
   .monaco-inputbox,
   input,
   textarea,
@@ -778,6 +800,8 @@ function buildInjectionScript(): string {
         document.removeEventListener('mousedown', onMouseDown);
         document.removeEventListener('mouseup', onMouseUp);
         window.removeEventListener('blur', onWindowBlur);
+        overlayWatcher.disconnect();
+        corruptWarningSuppressor.disconnect();
         window.__cursorAutoHide = null;
       },
     };
@@ -789,8 +813,49 @@ function buildInjectionScript(): string {
     .then(function(cfg) { init(cfg.delayMs || DEFAULT_DELAY_MS); })
     .catch(function() { init(DEFAULT_DELAY_MS); });
 
+  // Watch overlay widgets for display changes or DOM insertion.
+  // When quickOpen / code-action widget becomes visible while cursor is hidden,
+  // call show() immediately so the widget is fully interactive.
+  //
+  // Two strategies are used:
+  //   - style observer: for .quick-input-widget which is toggled via style.display
+  //   - domObs: for .action-widget / .context-view which are freshly inserted on demand,
+  //             and also catches late insertion of .quick-input-widget (lazy DOM creation)
+  var overlayWatcher = (function watchOverlayWidgets() {
+    var STYLE_WATCHED = '.quick-input-widget';
+    var INSERT_WATCHED = ['.action-widget', '.context-view'];
+
+    function attachStyleObserver(widget) {
+      new MutationObserver(function() {
+        if (widget.style.display !== 'none' && HTML.classList.contains(HIDDEN_CLASS)) show();
+      }).observe(widget, { attributes: true, attributeFilter: ['style'] });
+    }
+
+    var domObs = new MutationObserver(function(mutations) {
+      mutations.forEach(function(mutation) {
+        Array.from(mutation.addedNodes).forEach(function(node) {
+          if (node.nodeType !== 1 || !node.matches) return;
+          if (INSERT_WATCHED.some(function(sel) { return node.matches(sel); })) {
+            if (HTML.classList.contains(HIDDEN_CLASS)) show();
+            return;
+          }
+          if (node.matches(STYLE_WATCHED)) attachStyleObserver(node);
+        });
+      });
+    });
+
+    function start() {
+      var w = document.querySelector(STYLE_WATCHED);
+      if (w) attachStyleObserver(w);
+      domObs.observe(document.body || document.documentElement, { childList: true, subtree: true });
+    }
+
+    if (document.body) { start(); } else { document.addEventListener('DOMContentLoaded', start); }
+    return { disconnect() { domObs.disconnect(); } };
+  })();
+
   // Auto-dismiss VS Code's "corrupt installation" warning by clicking "Don't Show Again".
-  (function suppressCorruptWarning() {
+  var corruptWarningSuppressor = (function suppressCorruptWarning() {
     function tryDismiss(node) {
       if (node.nodeType !== 1) return;
       const text = node.textContent || '';
@@ -806,6 +871,7 @@ function buildInjectionScript(): string {
     });
     function start() { obs.observe(document.body, { childList: true, subtree: true }); }
     document.body ? start() : document.addEventListener('DOMContentLoaded', start);
+    return { disconnect() { obs.disconnect(); } };
   })();
 })();
 `.trim();
