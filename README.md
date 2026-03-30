@@ -28,7 +28,7 @@ Because this extension patches VS Code's workbench HTML to inject the cursor-hid
 
 > **Your Code installation appears to be corrupt. Please reinstall.**
 
-![Corrupt installation warning notification](media/corrupt-warning.png)
+![Corrupt installation warning notification](./media/corrupt-warning.png)
 
 **This is expected and safe.** The same warning appears with other workbench-patching extensions (Custom CSS and JS Loader, APC Customize UI++, etc.).
 
