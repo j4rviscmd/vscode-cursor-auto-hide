@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.1.2] - 2026-04-05
+
+### Fixed
+- Allow keyboard-triggered suggest widget (Ctrl+Space IntelliSense) to display correctly while cursor is hidden
+- Narrow Layer 3 CSS to only target `.monaco-tooltip` instead of blanket-hiding all `overflowingContentWidgets` children
+- Suppress `.monaco-sash` hover highlight persistence when cursor is hidden
+
+### Changed
+- Extend overlay exemptions with `.suggest-widget`, `.suggest-details-container`, and `.parameter-hints-widget`
+- Refactor JS `overlayWatcher` to monitor `.suggest-widget` display changes alongside `.quick-input-widget`
+
 ## [0.1.1] - 2026-03-30
 
 ### Fixed

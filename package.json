@@ -2,7 +2,7 @@
   "name": "cursor-auto-hide",
   "displayName": "Cursor Auto Hide",
   "description": "Automatically hides the mouse cursor after N seconds of inactivity. Perfect for Vim/Neovim users who prefer keyboard-only navigation.",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "publisher": "j4rviscmd",
   "license": "MIT",
   "engines": {
