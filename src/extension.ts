@@ -655,11 +655,23 @@ html.cursor-autohide-hidden .monaco-editor .view-lines {
   pointer-events: none !important;
 }
 
-/* === Cursor Auto Hide: Layer 3 — hide already-rendered hover UI === */
-html.cursor-autohide-hidden .monaco-tooltip,
-html.cursor-autohide-hidden .monaco-editor .overflowingContentWidgets > *:not(.monaco-resizable-hover) {
+/* === Cursor Auto Hide: Layer 3 — hide already-rendered hover UI ===
+   Only target tooltip overlays. Hover widgets (.hover-widget) are handled
+   by the JS hide() function.  Do NOT blanket-hide overflowingContentWidgets
+   children — that breaks keyboard-triggered widgets like suggest (Ctrl+Space),
+   parameter hints, etc. */
+html.cursor-autohide-hidden .monaco-tooltip {
   display: none !important;
   visibility: hidden !important;
+}
+
+/* === Cursor Auto Hide: Layer 3b — suppress sash hover highlight ===
+   When the mouse stops on a sash (editor split resize handle), the sash
+   receives a hover class before pointer-events:none kicks in.  Force-hide
+   the sash highlight so it does not persist while the cursor is hidden. */
+html.cursor-autohide-hidden .monaco-sash {
+  background-color: transparent !important;
+  opacity: 0 !important;
 }
 
 /* === Cursor Auto Hide: Keyboard Hover Exemption ===
@@ -678,7 +690,10 @@ html.cursor-autohide-hidden .monaco-editor .overflowingContentWidgets * {
    .zone-widget    → peek view, inline diff, inline chat, etc.
    .quick-input-widget → command palette, quickOpen, quickFix picker
    .action-widget  → Ctrl+. code actions / quick fix suggestions
-   .context-view   → right-click context menus, dropdown overlays */
+   .context-view   → right-click context menus, dropdown overlays
+   .suggest-widget → Ctrl+Space autocomplete / IntelliSense
+   .suggest-details-container → suggest widget documentation panel
+   .parameter-hints-widget → function signature / parameter hints */
 html.cursor-autohide-hidden :is(
   [role="dialog"],
   [role="menu"],
@@ -690,6 +705,9 @@ html.cursor-autohide-hidden :is(
   .zone-widget,
   .action-widget,
   .context-view,
+  .suggest-widget,
+  .suggest-details-container,
+  .parameter-hints-widget,
   .notification-toast,
   .monaco-inputbox,
   input,
@@ -704,6 +722,9 @@ html.cursor-autohide-hidden :is(
   .zone-widget,
   .action-widget,
   .context-view,
+  .suggest-widget,
+  .suggest-details-container,
+  .parameter-hints-widget,
   .monaco-inputbox,
   input,
   textarea,
@@ -762,6 +783,11 @@ function buildInjectionScript(): string {
           hw.style.display = 'none';
         }
       });
+      // Remove sash hover highlight that persists after pointer-events:none kicks in.
+      // Sashes use a JS-managed 'hover' class that is not cleared by CSS alone.
+      document.querySelectorAll('.monaco-sash.hover').forEach(function(sash) {
+        sash.classList.remove('hover');
+      });
       HTML.classList.add(HIDDEN_CLASS);
     }
   }
@@ -814,15 +840,16 @@ function buildInjectionScript(): string {
     .catch(function() { init(DEFAULT_DELAY_MS); });
 
   // Watch overlay widgets for display changes or DOM insertion.
-  // When quickOpen / code-action widget becomes visible while cursor is hidden,
+  // When quickOpen / code-action / suggest widget becomes visible while cursor is hidden,
   // call show() immediately so the widget is fully interactive.
   //
   // Two strategies are used:
-  //   - style observer: for .quick-input-widget which is toggled via style.display
+  //   - style observer: for widgets toggled via style.display (.quick-input-widget,
+  //                     .suggest-widget which are reused and toggled in-place)
   //   - domObs: for .action-widget / .context-view which are freshly inserted on demand,
-  //             and also catches late insertion of .quick-input-widget (lazy DOM creation)
+  //             and also catches late insertion of style-watched widgets (lazy DOM creation)
   var overlayWatcher = (function watchOverlayWidgets() {
-    var STYLE_WATCHED = '.quick-input-widget';
+    var STYLE_WATCHED = ['.quick-input-widget', '.suggest-widget'];
     var INSERT_WATCHED = ['.action-widget', '.context-view'];
 
     function attachStyleObserver(widget) {
@@ -839,14 +866,16 @@ function buildInjectionScript(): string {
             if (HTML.classList.contains(HIDDEN_CLASS)) show();
             return;
           }
-          if (node.matches(STYLE_WATCHED)) attachStyleObserver(node);
+          if (STYLE_WATCHED.some(function(sel) { return node.matches(sel); })) attachStyleObserver(node);
         });
       });
     });
 
     function start() {
-      var w = document.querySelector(STYLE_WATCHED);
-      if (w) attachStyleObserver(w);
+      STYLE_WATCHED.forEach(function(sel) {
+        var w = document.querySelector(sel);
+        if (w) attachStyleObserver(w);
+      });
       domObs.observe(document.body || document.documentElement, { childList: true, subtree: true });
     }
 
